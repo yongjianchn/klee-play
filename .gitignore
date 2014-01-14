@@ -1,19 +1,6 @@
-Release/
-Release+Asserts/
-Debug/
-Debug+Asserts/
-Output/
+klee-uclib*
+llvm-2.9*
+llvm-gcc*
+stp*
+tags
 
-cscope.*
-
-*.log
-*.sum
-*.out
-*.status
-
-*.config
-*.cfg
-*.swp
-
-config.h
-site.exp
