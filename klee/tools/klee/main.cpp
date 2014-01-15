@@ -1268,6 +1268,7 @@ int main(int argc, char **argv, char **envp) {
   
   switch (Libc) {
   case NoLibc: /* silence compiler warning */
+	klee_message("NoLibc - xyj");
     break;
 
   case KleeLibc: {
@@ -1280,11 +1281,13 @@ int main(int argc, char **argv, char **envp) {
 #endif
     mainModule = klee::linkWithLibrary(mainModule, Path.c_str());
     assert(mainModule && "unable to link with klee-libc");
+	klee_message("link with KleeLibc - xyj");
     break;
   }
 
   case UcLibc:
     mainModule = linkWithUclibc(mainModule, LibraryDir);
+	klee_message("link with UcLibc - xyj");
     break;
   }
 
@@ -1294,6 +1297,7 @@ int main(int argc, char **argv, char **envp) {
     klee_message("NOTE: Using model: %s", Path.c_str());
     mainModule = klee::linkWithLibrary(mainModule, Path.c_str());
     assert(mainModule && "unable to link with simple model");
+	klee_message("link with RuntimePOSIX.bca  - xyj");
   }  
 
   // Get the desired main function.  klee_main initializes uClibc

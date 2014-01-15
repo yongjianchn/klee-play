@@ -2499,11 +2499,15 @@ void Executor::run(ExecutionState &initialState) {
 
   // Delay init till now so that ticks don't accrue during
   // optimization and such.
-  initTimers();
+  initTimers();/*设置*/
 
-  states.insert(&initialState);
+  states.insert(&initialState);/*执行的目标是states，最初为空。在run函数开始的时候插入initialState*/
 
+  /*
+   *在种子模式下, TODO
+   */
   if (usingSeeds) {
+	  klee_message("Now in UsingSeeds mode! - xyj");
     std::vector<SeedInfo> &v = seedMap[&initialState];
     
     for (std::vector<KTest*>::const_iterator it = usingSeeds->begin(), 
@@ -2567,8 +2571,14 @@ void Executor::run(ExecutionState &initialState) {
       goto dump;
   }
 
+  /*
+   *非种子模式下，使用searcher来符号执行每个状态
+   */
+  //get searcher, here we can use some new searcher. 
+  //To add searcher, modify Searcher.h & cpp, and UserSearcher.h & cpp
   searcher = constructUserSearcher(*this);
 
+  //update(current, toinsert, toremove), here insert states and remove nothing
   searcher->update(0, states, std::set<ExecutionState*>());
 
   while (!states.empty() && !haltExecution) {
@@ -3370,8 +3380,9 @@ void Executor::runFunctionAsMain(Function *f,
     }
   }
 
-  ExecutionState *state = new ExecutionState(kmodule->functionMap[f]);
+  ExecutionState *state = new ExecutionState(kmodule->functionMap[f]);//创建一个初始状态
   
+  state.dumpStack("new ExecutionState  - xyj");
   if (pathWriter) 
     state->pathOS = pathWriter->open();
   if (symPathWriter) 
@@ -3407,11 +3418,18 @@ void Executor::runFunctionAsMain(Function *f,
     }
   }
   
+  //初始化全局信息
   initializeGlobals(*state);
 
+  //创建processTree
   processTree = new PTree(state);
+  //每个state有一个指针是processTree中的一个节点
   state->ptreeNode = processTree->root;
+  /*修改过的state*/
+  state.dumpStack("state - modified - xyj");
+  //执行初始state
   run(*state);
+  /*之后是一些结尾工作*/
   delete processTree;
   processTree = 0;
 
