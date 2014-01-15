@@ -105,4 +105,71 @@ Executor是Inpterpreter类的子类。是各种searcher类、tracker类的友元
 
 至此，执行过程中的重点落在Executor的run()函数上。对此函数分析如下：
 
+	...种子模式省略
+	
+	  /*
+	   *非种子模式下，使用searcher来符号执行每个状态
+	   */
+	  //get searcher, here we can use some new searcher. 
+	  //To add searcher, modify Searcher.h & cpp, and UserSearcher.h & cpp
+	  searcher = constructUserSearcher(*this);
+
+	  //update(current, toinsert, toremove), here insert states and remove nothing
+	  searcher->update(0, states, std::set<ExecutionState*>());
+
+	  while (!states.empty() && !haltExecution) {
+		ExecutionState &state = searcher->selectState();//具体的每个searcher类保存了一个states*队列，从这个队列中选择一个state返回
+		KInstruction *ki = state.pc;//即将执行的状态是state，获取其pc
+		stepInstruction(state);//用于统计或Track一些信息，比如统计所有的执行指令数
+
+		executeInstruction(state, ki);//对当前state执行一条指令
+		processTimers(&state, MaxInstructionTime);//启动一些timer来检查，timer应该是维护了指令级别的ticks，一条指令开始便开始tick，使用完毕ticks=0;
+		//比如发现指令执行时间长于设定的最大时间，那么就terminate state
+
+		/*
+		 *针对设置了MaxMemory的情况来做一些操作
+		 */
+		if (MaxMemory) {
+		  if ((stats::instructions & 0xFFFF) == 0) {//HOW？？？
+			// We need to avoid calling GetMallocUsage() often because it
+			// is O(elts on freelist). This is really bad since we start
+			// to pummel the freelist once we hit the memory cap.
+	#if LLVM_VERSION_CODE >= LLVM_VERSION(3, 3)
+			unsigned mbs = sys::Process::GetMallocUsage() >> 20;
+	#else
+			unsigned mbs = sys::Process::GetTotalMemoryUsage() >> 20;
+	#endif
+			if (mbs > MaxMemory) {
+			  if (mbs > MaxMemory + 100) {//如果使用的memory过多，那么kill一些states
+				// just guess at how many to kill
+				unsigned numStates = states.size();
+				unsigned toKill = std::max(1U, numStates - numStates*MaxMemory/mbs);
+
+				if (MaxMemoryInhibit)
+				  klee_warning("killing %d states (over memory cap)",
+							   toKill);
+
+				std::vector<ExecutionState*> arr(states.begin(), states.end());
+				for (unsigned i=0,N=arr.size(); N && i<toKill; ++i,--N) {
+				  unsigned idx = rand() % N;
+
+				  // Make two pulls to try and not hit a state that
+				  // covered new code.
+				  if (arr[idx]->coveredNew)
+					idx = rand() % N;
+
+				  std::swap(arr[idx], arr[N-1]);
+				  terminateStateEarly(*arr[N-1], "Memory limit exceeded.");
+				}
+			  }
+			  atMemoryLimit = true;
+			} else {
+			  atMemoryLimit = false;
+			}
+		  }
+		}
+
+		updateStates(&state);//包括searcher的states队列的更新和Executor的states set的更新
+	  }
+
 

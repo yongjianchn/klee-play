@@ -2582,15 +2582,19 @@ void Executor::run(ExecutionState &initialState) {
   searcher->update(0, states, std::set<ExecutionState*>());
 
   while (!states.empty() && !haltExecution) {
-    ExecutionState &state = searcher->selectState();
-    KInstruction *ki = state.pc;
-    stepInstruction(state);
+    ExecutionState &state = searcher->selectState();//具体的每个searcher类保存了一个states*队列，从这个队列中选择一个state返回
+    KInstruction *ki = state.pc;//即将执行的状态是state，获取其pc
+    stepInstruction(state);//用于统计或Track一些信息，比如统计所有的执行指令数
 
-    executeInstruction(state, ki);
-    processTimers(&state, MaxInstructionTime);
+    executeInstruction(state, ki);//对当前state执行一条指令
+    processTimers(&state, MaxInstructionTime);//启动一些timer来检查，timer应该是维护了指令级别的ticks，一条指令开始便开始tick，使用完毕ticks=0;
+	//比如发现指令执行时间长于设定的最大时间，那么就terminate state
 
+	/*
+	 *针对设置了MaxMemory的情况来做一些操作
+	 */
     if (MaxMemory) {
-      if ((stats::instructions & 0xFFFF) == 0) {
+      if ((stats::instructions & 0xFFFF) == 0) {//HOW？？？
         // We need to avoid calling GetMallocUsage() often because it
         // is O(elts on freelist). This is really bad since we start
         // to pummel the freelist once we hit the memory cap.
@@ -2600,7 +2604,7 @@ void Executor::run(ExecutionState &initialState) {
         unsigned mbs = sys::Process::GetTotalMemoryUsage() >> 20;
 #endif
         if (mbs > MaxMemory) {
-          if (mbs > MaxMemory + 100) {
+          if (mbs > MaxMemory + 100) {//如果使用的memory过多，那么kill一些states
             // just guess at how many to kill
             unsigned numStates = states.size();
             unsigned toKill = std::max(1U, numStates - numStates*MaxMemory/mbs);
@@ -2629,7 +2633,7 @@ void Executor::run(ExecutionState &initialState) {
       }
     }
 
-    updateStates(&state);
+    updateStates(&state);//包括searcher的states队列的更新和Executor的states set的更新
   }
 
   delete searcher;
@@ -3381,8 +3385,10 @@ void Executor::runFunctionAsMain(Function *f,
   }
 
   ExecutionState *state = new ExecutionState(kmodule->functionMap[f]);//创建一个初始状态
-  
-  state.dumpStack("new ExecutionState  - xyj");
+  /*
+  std::ostringstream msg;
+  msg<<"dumpStack NewCreate - xyj";
+  state->dumpStack(msg);*/
   if (pathWriter) 
     state->pathOS = pathWriter->open();
   if (symPathWriter) 
@@ -3426,7 +3432,9 @@ void Executor::runFunctionAsMain(Function *f,
   //每个state有一个指针是processTree中的一个节点
   state->ptreeNode = processTree->root;
   /*修改过的state*/
-  state.dumpStack("state - modified - xyj");
+  /*std::ostringstream msg2;
+  msg2<<"state - dumpStack-modified - xyj";
+  state->dumpStack(msg2);*/
   //执行初始state
   run(*state);
   /*之后是一些结尾工作*/
