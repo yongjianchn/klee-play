@@ -81,6 +81,8 @@ Here is a list of namespaces
 * Set libc: NoLibc/KleeLibc/UcLibc
 * Get the main function of mainModule.
 * Get Argc\ArgV for target, set pEnvp(using the given file via --environ or system env).
+* 创建handler，保存一些信息如PID等，并且根据handler创建interpreter，这里创建了一个interpreter的子类Executor  
+* setModule()得到finalModule，然后做一些check。
 * Running: two modes: Replay, Normal. 真正的执行函数：interpreter->runFunctionAsMain(mainFn, pArgc, pArgv, pEnvp); 需要看interpreter类
 * Get statistics. 
 
@@ -89,24 +91,31 @@ Here is a list of namespaces
 这个函数是Interpreper类的成员函数。以此为主线来分析klee的执行过程  
 此处已有重要的数据结构：  
 
-*handler = new KleeHandler(pArgc, pArgv);
-Interpreter::InterpreterOptions IOpts;
-Interpreter *interpreter = Interpreter::create(IOpts, handler);
-handler->setInterpreter(interpreter);
-interpreter 虽然是Interpreter指针类型，但是Interpreter::create()函数如下：
+*handler = new KleeHandler(pArgc, pArgv);  
+Interpreter::InterpreterOptions IOpts;  
+Interpreter *interpreter = Interpreter::create(IOpts, handler);  
+handler->setInterpreter(interpreter);  
+interpreter 虽然是Interpreter指针类型，但是Interpreter::create()函数如下：  
+
 	Interpreter *Interpreter::create(const InterpreterOptions &opts,
 			                                 InterpreterHandler *ih) {
 		  return new Executor(opts, ih);
 	}
+
 返回一个Executor类型的指针。所以去追究Executor的runFunctionAsMain()函数。
 
 Executor是Inpterpreter类的子类。是各种searcher类、tracker类的友元。  
-分析执行过程从上述runFunctionAsMain()函数开始分析，其主要作用是创建初始state，初始化全局信息，创建processTree（该Tree的节点是执行状态state）。然后调用run()函数对初始state进行执行，等执行完毕，就做收尾工作（删除各种创建的东西）。
+分析执行过程从上述runFunctionAsMain()函数开始分析。  
+其主要作用是:  
+* 创建初始state
+* 初始化全局信息
+* 创建processTree（该Tree的节点是执行状态state）
+* 调用run()函数对初始state进行执行
+* 收尾工作（删除各种创建的东西）
 
 至此，执行过程中的重点落在Executor的run()函数上。对此函数分析如下：
 
-	...种子模式省略
-	
+		//种子模式省略
 	  /*
 	   *非种子模式下，使用searcher来符号执行每个状态
 	   */
@@ -118,7 +127,7 @@ Executor是Inpterpreter类的子类。是各种searcher类、tracker类的友元
 	  searcher->update(0, states, std::set<ExecutionState*>());
 
 	  while (!states.empty() && !haltExecution) {
-		ExecutionState &state = searcher->selectState();//具体的每个searcher类保存了一个states*队列，从这个队列中选择一个state返回
+		ExecutionState &state = searcher->selectState();//具体的每个searcher类保存了一个states*结构（如vector等，根据算法需要进行选择），从这个结构中选择一个state返回
 		KInstruction *ki = state.pc;//即将执行的状态是state，获取其pc
 		stepInstruction(state);//用于统计或Track一些信息，比如统计所有的执行指令数
 
@@ -171,5 +180,9 @@ Executor是Inpterpreter类的子类。是各种searcher类、tracker类的友元
 
 		updateStates(&state);//包括searcher的states队列的更新和Executor的states set的更新
 	  }
+	
 
+Executor::executeInstruction()分析
+
+其中就是一个大的switch-case结构，根据指令的Opcode执行不同的操作。
 
