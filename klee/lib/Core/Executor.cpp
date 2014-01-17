@@ -2582,7 +2582,7 @@ void Executor::run(ExecutionState &initialState) {
   searcher->update(0, states, std::set<ExecutionState*>());
 
   while (!states.empty() && !haltExecution) {
-    ExecutionState &state = searcher->selectState();//具体的每个searcher类保存了一个states*队列，从这个队列中选择一个state返回
+    ExecutionState &state = searcher->selectState();//具体的每个searcher类保存了一个states*队列（或别的结构），从这个队列中选择一个state返回
     KInstruction *ki = state.pc;//即将执行的状态是state，获取其pc
     stepInstruction(state);//用于统计或Track一些信息，比如统计所有的执行指令数
 

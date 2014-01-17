@@ -285,6 +285,46 @@ bool RandomPathSearcher::empty() {
   return executor.states.empty(); 
 }
 
+///xyj
+
+HeuristicPathSearcher::HeuristicPathSearcher(Executor &_executor)
+  : executor(_executor) {
+}
+
+HeuristicPathSearcher::~HeuristicPathSearcher() {
+}
+
+ExecutionState &HeuristicPathSearcher::selectState() {
+	klee_message("xxxxxxxxxxyyyyyyyyyyyyyyyjjjjjjjjjjjjjjjjj");
+  unsigned flips=0, bits=0;
+  PTree::Node *n = executor.processTree->root;
+  
+  while (!n->data) {
+    if (!n->left) {
+      n = n->right;
+    } else if (!n->right) {
+      n = n->left;
+    } else {
+      if (bits==0) {
+        flips = theRNG.getInt32();
+        bits = 32;
+      }
+      --bits;
+      n = (flips&(1<<bits)) ? n->left : n->right;
+    }
+  }
+
+  return *n->data;
+}
+
+void HeuristicPathSearcher::update(ExecutionState *current,
+                                const std::set<ExecutionState*> &addedStates,
+                                const std::set<ExecutionState*> &removedStates) {
+}
+
+bool HeuristicPathSearcher::empty() { 
+  return executor.states.empty(); 
+}
 ///
 
 BumpMergingSearcher::BumpMergingSearcher(Executor &_executor, Searcher *_baseSearcher) 

@@ -72,6 +72,7 @@ namespace klee {
       BFS,
       RandomState,
       RandomPath,
+	  HeuristicPath,
       NURS_CovNew,
       NURS_MD2U,
       NURS_Depth,
@@ -179,6 +180,23 @@ namespace klee {
     bool empty();
     void printName(std::ostream &os) {
       os << "RandomPathSearcher\n";
+    }
+  };
+//xyj
+  class HeuristicPathSearcher : public Searcher {
+    Executor &executor;
+
+  public:
+    HeuristicPathSearcher(Executor &_executor);
+    ~HeuristicPathSearcher();
+
+    ExecutionState &selectState();
+    void update(ExecutionState *current,
+                const std::set<ExecutionState*> &addedStates,
+                const std::set<ExecutionState*> &removedStates);
+    bool empty();
+    void printName(std::ostream &os) {
+      os << "HeuristicPathSearcher\n";
     }
   };
 
