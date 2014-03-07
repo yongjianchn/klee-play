@@ -258,6 +258,15 @@ namespace {
   MaxMemoryInhibit("max-memory-inhibit",
             cl::desc("Inhibit forking at memory cap (vs. random terminate) (default=on)"),
             cl::init(true));
+//xyj
+  cl::opt<std::string>
+  FileName("file-name",
+            cl::desc("set guided path search's target file-name(string)"),
+            cl::init(""));
+  cl::opt<int>
+  LineNum("line-num",
+            cl::desc("set guided path search's target line-num(string)"),
+            cl::init(1));
 }
 
 
@@ -2576,7 +2585,8 @@ void Executor::run(ExecutionState &initialState) {
    */
   //get searcher, here we can use some new searcher. 
   //To add searcher, modify Searcher.h & cpp, and UserSearcher.h & cpp
-  searcher = constructUserSearcher(*this);
+// xyj
+  searcher = constructUserSearcher(*this, FileName, LineNum);
 
   //update(current, toinsert, toremove), here insert states and remove nothing
   searcher->update(0, states, std::set<ExecutionState*>());

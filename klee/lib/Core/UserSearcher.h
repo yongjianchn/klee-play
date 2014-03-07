@@ -17,7 +17,7 @@ namespace klee {
   // XXX gross, should be on demand?
   bool userSearcherRequiresMD2U();
 
-  Searcher *constructUserSearcher(Executor &executor);
+  Searcher *constructUserSearcher(Executor &executor, std::string filename, int linenum);
 }
 
 #endif

@@ -38,6 +38,11 @@
 #include "llvm/Support/CFG.h"
 #include "llvm/Support/CommandLine.h"
 
+#include "llvm/PassManager.h"
+#include "llvm/Pass.h"
+
+#include "../Module/Passes.h"
+
 #include <cassert>
 #include <fstream>
 #include <climits>
@@ -285,46 +290,202 @@ bool RandomPathSearcher::empty() {
   return executor.states.empty(); 
 }
 
-///xyj
+// xyj's searcher
+GuidedPathSearcher::GuidedPathSearcher(Executor &_executor, std::string filename, int linenum)
+  : executor(_executor), miss_ctr(0), filename(filename), linenum(linenum) {
+	Module *M = executor.kmodule->module;
+	PassManager Passes;
+	Passes.add(new PathList(&paths, filename, linenum));
+	Passes.run(*M);
 
-HeuristicPathSearcher::HeuristicPathSearcher(Executor &_executor)
-  : executor(_executor) {
+	std::cerr << "GuidededSearcher:: Here's my path(s):\n";
+
+	for(std::vector<pathType>::iterator pit=paths.begin(); pit != paths.end(); ++pit) {
+		pathType path = *pit;
+
+		if (path.empty())
+		  continue;
+
+		for (pathType::iterator it=path.begin(); it != path.end(); ++it) {
+		  BasicBlock *bb = *it;
+		  std::cerr << "[ " << bb->getNameStr() << " {" << bb->getParent()->getNameStr() << "} [" << bb << "] - ";
+		}
+		std::cerr << "\n";
+
+		// Build the instMap
+		// FIX: If many paths shre the leaf BB instMap (which will be very common)
+		// we need to either 1/ Update all paths instMap when a leaf is hit or
+		// 2/ terminate all paths with shared leafs when one paths instMap is completed
+		std::map<llvm::Instruction*, bool> instMap;
+
+		BasicBlock *BB = path.back();
+		for (BasicBlock::iterator bbit = BB->begin(); bbit != BB->end(); ++bbit) {
+		  Instruction *I = bbit;
+		  if (I->getOpcode() != Instruction::Br)
+			instMap[I] = false;
+		}
+		std::cerr << instMap.size() << " instructions in leaf BB\n";
+		instMaps.push_back(instMap);
+	}
 }
 
-HeuristicPathSearcher::~HeuristicPathSearcher() {
+GuidedPathSearcher::~GuidedPathSearcher() {
 }
 
-ExecutionState &HeuristicPathSearcher::selectState() {
-	klee_message("xxxxxxxxxxyyyyyyyyyyyyyyyjjjjjjjjjjjjjjjjj");
-  unsigned flips=0, bits=0;
-  PTree::Node *n = executor.processTree->root;
+bool GuidedPathSearcher::done(int index)
+{
+  std::map<llvm::Instruction*, bool> *instMap = &instMaps[index];
+  if (instMap == NULL)
+    return true;
+  if (instMap->empty())
+    return true;
+
+  for(std::map<llvm::Instruction*, bool>::iterator it = instMap->begin(); it != instMap->end(); ++it)
+	if (!it->second)
+	  return false;
+  return true;
+}
+
+bool GuidedPathSearcher::allDone(void)
+{
+  int ctr=0;
+  for(std::vector<pathType>::iterator pit=paths.begin(); pit != paths.end(); ++pit, ctr++) {
+	if (!done(ctr))
+	  return false;
+	}
+  return true;
+}
+int GuidedPathSearcher::left(int index)
+{
+  std::map<llvm::Instruction*, bool> *instMap = &instMaps[index];
+
+  int ctr = 0;
+  for(std::map<llvm::Instruction*, bool>::iterator it = instMap->begin(); it != instMap->end(); ++it)
+	if (!it->second)
+	  ctr++;
+  return ctr;
+}
+
+void GuidedPathSearcher::killAllStates(void)
+{
+  for (std::vector<ExecutionState*>::iterator it = states.begin(); it != states.end(); ++it) {
+	executor.terminateStateEarly(**it, "GuidedSearcher -- Path reached");
+  }
+  empty();
+}
+
+ExecutionState &GuidedPathSearcher::selectState()
+{
+  if (paths.size()==0) {
+	std::cerr << "GuidedSearcher: Error, no paths! Terminating all states\n";
+	killAllStates();
+  }
   
-  while (!n->data) {
-    if (!n->left) {
-      n = n->right;
-    } else if (!n->right) {
-      n = n->left;
+  //  std::cerr << "selectState: processing " << states.size() << " state(s)\n";
+
+  for (std::vector<ExecutionState*>::iterator it = states.begin(); it != states.end(); ++it) {
+	ExecutionState *state = *it;
+	Instruction *state_i = state->pc->inst;
+	BasicBlock *state_bb = state_i->getParent();
+
+	// Loop over all paths...
+	// States can go in and out of different paths, we can't really control that,
+	// so we keep picking states in paths that are not done yet.
+	// .. and when a state executes the last instruction in a BB leaf, we terminate that state
+	// (in order to generate the test case)
+	// ... and when all paths are complete, we stop all together.
+
+	int ctr=0;  // for index into instMaps
+	for(std::vector<pathType>::iterator pit=paths.begin(); pit != paths.end(); ++pit, ctr++) {
+	  pathType path = *pit;
+
+	  // Are we done with this path?
+	  if (done(ctr))
+		continue;
+
+	  // The idea here is to pick a state that has it's PC in a BB that's in the path.
+	  // Preferrably as close to the leaf BB as possible, thus
+	  // we travese the path in reverse order and return first match.
+
+	  for (pathType::reverse_iterator bbit = path.rbegin(); bbit != path.rend(); ++bbit) {
+		BasicBlock *BB = *bbit;
+#if 0
+		std::cerr << "  trying s[" << state  << "] " << " p[" << ctr << "] " << BB << " "
+				  << BB->getParent()->getNameStr() << " >state: "
+				  << "{" << state_bb << " " << state_bb->getParent()->getNameStr() << "}\n";
+#endif
+		// is the state_bb in our path?
+		if (state_bb == BB) {
+		  instMaps[ctr][state_i] = true;
+		  // Are we done? Terminate this state and write out info
+		  // FIX: Doesn't this mean that we wont run the last instruction in the BB?
+		  if (done(ctr)) {
+			executor.terminateStateOnError(*state, "BB completed", "guidedsearcher");
+			continue;
+		  }
+		  if (miss_ctr != 0) {
+			std::cerr << miss_ctr << " path misses [" << states.size() << " state(s)]\n";
+			miss_ctr=0;
+		  }
+		  if (bbit == path.rbegin())
+			std::cerr << "! new hit in leaf [p: " << ctr << " (" << left(ctr) << ")]\n";
+		  else
+			std::cerr << "* hit " << state->pc->inst->getParent()->getParent()->getNameStr()
+					  << " [p: " << ctr << " (" << left(ctr) << ")]\n";
+		  return *state;
+		}
+	  }
+	}
+
+	if (allDone()) {
+	  std::cerr << "GuidedSearcher done -- terminating remaining states\n";
+	  killAllStates();
+	}
+  }
+  // std::cerr << "- found no match\n";
+  miss_ctr++;
+  if ((miss_ctr%1000) == 0)
+	std::cerr << miss_ctr << " path misses [" << states.size() << " state(s)]...\n";
+  return *states[theRNG.getInt32()%states.size()];  // pick a random state (this will help with fork bombing)
+}
+
+void GuidedPathSearcher::update(ExecutionState *current,
+                         const std::set<ExecutionState*> &addedStates,
+                         const std::set<ExecutionState*> &removedStates) {
+
+  if (addedStates.size()==0 && removedStates.size()==0)
+	return;
+
+  std::cerr << "Adding " << addedStates.size() << " & removing " << removedStates.size() << " state(s)\n";
+
+  states.insert(states.end(),
+                addedStates.begin(),
+                addedStates.end());
+  for (std::set<ExecutionState*>::const_iterator it = removedStates.begin(),
+         ie = removedStates.end(); it != ie; ++it) {
+    ExecutionState *es = *it;
+    if (es == states.back()) {
+      states.pop_back();
     } else {
-      if (bits==0) {
-        flips = theRNG.getInt32();
-        bits = 32;
+      bool ok = false;
+
+      for (std::vector<ExecutionState*>::iterator it = states.begin(),
+             ie = states.end(); it != ie; ++it) {
+        if (es==*it) {
+          states.erase(it);
+          ok = true;
+          break;
+        }
       }
-      --bits;
-      n = (flips&(1<<bits)) ? n->left : n->right;
+
+      assert(ok && "invalid state removed");
     }
   }
-
-  return *n->data;
 }
-
-void HeuristicPathSearcher::update(ExecutionState *current,
-                                const std::set<ExecutionState*> &addedStates,
-                                const std::set<ExecutionState*> &removedStates) {
-}
-
-bool HeuristicPathSearcher::empty() { 
+bool GuidedPathSearcher::empty() {
   return executor.states.empty(); 
 }
+
 ///
 
 BumpMergingSearcher::BumpMergingSearcher(Executor &_executor, Searcher *_baseSearcher) 

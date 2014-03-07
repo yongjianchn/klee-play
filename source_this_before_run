@@ -1,0 +1,6 @@
+cd $(dirname $(readlink -f "${BASH_SOURCE[0]}"))
+thisdir=`pwd`
+cd -
+export PATH=$thisdir/llvm-gcc4.2-2.9-x86_64-linux/bin:$PATH
+export PATH=$thisdir/llvm-2.9/Release+Asserts/bin:$PATH
+export PATH=$thisdir/klee/Release+Asserts/bin:$PATH

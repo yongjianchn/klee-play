@@ -5,7 +5,7 @@ set -e
 JOBS="-j $(grep -c processor /proc/cpuinfo)"
 gcc_version=`gcc --version|sed -n 1p|cut -d ' ' -f 4|cut -d '.' -f 2`
 #needed
-sudo apt-get install g++ curl dejagnu subversion bison flex bc libcap-dev
+#sudo apt-get install g++ curl dejagnu subversion bison flex bc libcap-dev
 
 llvm_gcc_url=http://llvm.org/releases/2.9/llvm-gcc4.2-2.9-x86_64-linux.tar.bz2
 llvm_2_9_url=http://llvm.org/releases/2.9/llvm-2.9.tgz

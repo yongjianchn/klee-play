@@ -36,9 +36,84 @@ namespace llvm {
   class TargetLowering;
   class Type;
 }
+//-----------------------------------------------
+#include <llvm/Module.h>
+#include <llvm/Instructions.h>
+#include <llvm/Support/IRBuilder.h>
+#include <llvm/Pass.h>
+#include "llvm/Support/raw_ostream.h"
+#include <llvm/Support/Debug.h>
+#include <llvm/Analysis/DebugInfo.h>
+#include <llvm/Metadata.h>
+#include <llvm/Analysis/CallGraph.h>
+#include <llvm/Analysis/Dominators.h>
+#include <llvm/Support/CallSite.h>
+#include <llvm/Support/CFG.h>
+#include <llvm/ADT/SCCIterator.h>
+#include <llvm/Transforms/Utils/BasicBlockUtils.h>
+#include <llvm/ADT/OwningPtr.h>
+#include <llvm/Support/Path.h>
 
+//-------------------------------------------------
 namespace klee {
+//===========================================================================================
+using namespace llvm;
 
+	typedef std::vector< std::vector<BasicBlock*> > paths;
+class PathList : public ModulePass {
+public:
+	typedef std::vector< std::vector<BasicBlock*> > paths;
+	static char ID;
+	PathList(paths *_paths, std::string _filename, int _lineno);
+	PathList();
+
+	Module* module;
+	std::string fileName;
+	int lineNo;
+
+	//data struct to store paths
+	paths* paths_found;
+
+	virtual void getAnalysisUsage(AnalysisUsage &AU) const {
+		AU.setPreservesAll();
+		AU.addRequired<CallGraph>();
+		AU.addRequired<DominatorTree>();
+	}
+
+	virtual bool runOnModule(Module &M);
+
+
+private:
+	typedef IRBuilder<> BuilderTy;
+	BuilderTy *Builder;
+
+	DominatorTree *DT;
+
+	// Set of filenames and line numbers pointing to areas of interest
+	typedef std::map<std::string, std::vector<int> > defectList;
+	defectList dl;
+
+	typedef std::vector<std::pair<Function*, Instruction*> > CalledFunctions;
+	typedef std::map<const Function*, CalledFunctions> FunctionMapTy;
+	FunctionMapTy calledFunctionMap;
+
+	typedef std::pair<const llvm::BasicBlock *, const llvm::BasicBlock *> Edge;
+	SmallVector<Edge, 32> BackEdges;
+	typedef llvm::SmallVectorImpl<Edge> EdgeVec;
+
+
+	Instruction* bug_Inst;
+
+	BasicBlock *getBB(std::string srcFile, int srcLine);
+	bool findLineInBB(BasicBlock *BB, std::string srcFile, unsigned srcLine);
+
+	void printCalledFuncPath(Function *srcFunc, Function *dstFunc);
+	void printCalledFuncAndCFGPath(Function *srcFunc, Function *dstFunc, BasicBlock *BB, std::vector<BasicBlock*> *p);
+	Constant* getSourceFile(Instruction* I);
+	bool isBackEdge(llvm::BasicBlock *From, llvm::BasicBlock *To);
+};
+
+//===========================================================================================
   /// RaiseAsmPass - This pass raises some common occurences of inline
   /// asm which are used by glibc into normal LLVM IR.
 class RaiseAsmPass : public llvm::ModulePass {

@@ -8,7 +8,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "Common.h"
-
+#include "../Module/Passes.h"
 #include "UserSearcher.h"
 
 #include "Searcher.h"
@@ -26,7 +26,7 @@ namespace {
 			clEnumValN(Searcher::BFS, "bfs", "use Breadth First Search (BFS)"),
 			clEnumValN(Searcher::RandomState, "random-state", "randomly select a state to explore"),
 			clEnumValN(Searcher::RandomPath, "random-path", "use Random Path Selection (see OSDI'08 paper)"),
-			clEnumValN(Searcher::HeuristicPath, "heuristic-path", "use bug report to analysis target heuristically "),
+			clEnumValN(Searcher::GuidedPath, "guided-path", "use bug report to analysis target"),
 			clEnumValN(Searcher::NURS_CovNew, "nurs:covnew", "use Non Uniform Random Search (NURS) with Coverage-New"),
 			clEnumValN(Searcher::NURS_MD2U, "nurs:md2u", "use NURS with Min-Dist-to-Uncovered"),
 			clEnumValN(Searcher::NURS_Depth, "nurs:depth", "use NURS with 2^depth"),
@@ -75,14 +75,14 @@ bool klee::userSearcherRequiresMD2U() {
 }
 
 
-Searcher *getNewSearcher(Searcher::CoreSearchType type, Executor &executor) {
+Searcher *getNewSearcher(Searcher::CoreSearchType type, Executor &executor, std::string filename, int linenum) {
   Searcher *searcher = NULL;
   switch (type) {
   case Searcher::DFS: searcher = new DFSSearcher(); break;
   case Searcher::BFS: searcher = new BFSSearcher(); break;
   case Searcher::RandomState: searcher = new RandomSearcher(); break;
   case Searcher::RandomPath: searcher = new RandomPathSearcher(executor); break;
-  case Searcher::HeuristicPath: searcher = new HeuristicPathSearcher(executor); break;
+  case Searcher::GuidedPath: searcher = new GuidedPathSearcher(executor, filename, linenum); break;
   case Searcher::NURS_CovNew: searcher = new WeightedRandomSearcher(executor, WeightedRandomSearcher::CoveringNew); break;
   case Searcher::NURS_MD2U: searcher = new WeightedRandomSearcher(executor, WeightedRandomSearcher::MinDistToUncovered); break;
   case Searcher::NURS_Depth: searcher = new WeightedRandomSearcher(executor, WeightedRandomSearcher::Depth); break;
@@ -94,7 +94,7 @@ Searcher *getNewSearcher(Searcher::CoreSearchType type, Executor &executor) {
   return searcher;
 }
 
-Searcher *klee::constructUserSearcher(Executor &executor) {
+Searcher *klee::constructUserSearcher(Executor &executor, std::string filename, int linenum) {
 
   // default values
   if (CoreSearch.size() == 0) {
@@ -102,14 +102,14 @@ Searcher *klee::constructUserSearcher(Executor &executor) {
     CoreSearch.push_back(Searcher::NURS_CovNew);
   }
 
-  Searcher *searcher = getNewSearcher(CoreSearch[0], executor);
+  Searcher *searcher = getNewSearcher(CoreSearch[0], executor, filename, linenum);
   
   if (CoreSearch.size() > 1) {
     std::vector<Searcher *> s;
     s.push_back(searcher);
 
     for (unsigned i=1; i<CoreSearch.size(); i++)
-      s.push_back(getNewSearcher(CoreSearch[i], executor));
+      s.push_back(getNewSearcher(CoreSearch[i], executor, filename, linenum));
     
     searcher = new InterleavedSearcher(s);
   }

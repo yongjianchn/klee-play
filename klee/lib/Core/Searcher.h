@@ -14,14 +14,18 @@
 #include <set>
 #include <map>
 #include <queue>
-
 // FIXME: Move out of header, use llvm streams.
 #include <ostream>
+#include "llvm/Constants.h"
+#include "llvm/Instructions.h"
+#include "llvm/Module.h"
+
 
 namespace llvm {
   class BasicBlock;
   class Function;
   class Instruction;
+  class Pass;
 }
 
 namespace klee {
@@ -72,7 +76,7 @@ namespace klee {
       BFS,
       RandomState,
       RandomPath,
-	  HeuristicPath,
+	  GuidedPath,
       NURS_CovNew,
       NURS_MD2U,
       NURS_Depth,
@@ -182,13 +186,22 @@ namespace klee {
       os << "RandomPathSearcher\n";
     }
   };
-//xyj
-  class HeuristicPathSearcher : public Searcher {
-    Executor &executor;
-
+// TODO: xyj's searcher
+  class GuidedPathSearcher : public Searcher {
   public:
-    HeuristicPathSearcher(Executor &_executor);
-    ~HeuristicPathSearcher();
+    typedef std::vector<llvm::BasicBlock *> pathType;
+  private:
+    std::vector<ExecutionState *> states;
+    Executor &executor;
+    std::vector<std::map<llvm::Instruction*, bool> > instMaps;
+    std::string defectFile;
+    int miss_ctr;
+    std::vector<pathType> paths;
+    std::string filename;
+    int linenum;
+  public:
+    GuidedPathSearcher(Executor &_executor, std::string filename, int linenum);
+    ~GuidedPathSearcher();
 
     ExecutionState &selectState();
     void update(ExecutionState *current,
@@ -198,6 +211,11 @@ namespace klee {
     void printName(std::ostream &os) {
       os << "HeuristicPathSearcher\n";
     }
+  private:
+    bool allDone();
+    bool done(int index);
+    int left(int index);
+    void killAllStates(void);
   };
 
   class MergingSearcher : public Searcher {
