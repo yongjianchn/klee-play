@@ -5,3 +5,4 @@ stp*
 tags
 
 cscope*
+*.o
