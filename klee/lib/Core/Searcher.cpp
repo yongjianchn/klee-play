@@ -291,8 +291,8 @@ bool RandomPathSearcher::empty() {
 }
 
 // xyj's searcher
-GuidedPathSearcher::GuidedPathSearcher(Executor &_executor, std::string filename, int linenum)
-  : executor(_executor), miss_ctr(0), filename(filename), linenum(linenum) {
+GuidedPathSearcher::GuidedPathSearcher(Executor &_executor, std::string _filename, int _linenum)
+  : executor(_executor), miss_ctr(0), filename(_filename), linenum(_linenum) {
 	Module *M = executor.kmodule->module;
 	PassManager Passes;
 	Passes.add(new PathList(&paths, filename, linenum));

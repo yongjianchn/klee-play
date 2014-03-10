@@ -186,22 +186,23 @@ void PathList::printCalledFuncAndCFGPath(Function *srcFunc, Function *dstFunc, B
 
 bool PathList::runOnModule(Module &M) {
 	module = &M;
-		
+
 	CallGraph &CG = getAnalysis<CallGraph>();
-	CG.dump();
+	//CG.dump();
 	
 	CallGraphNode *cgNode = CG.getRoot();
-	cgNode->dump();
+	//cgNode->dump();
 //	errs()<<node->getFunction()->getName()<<'\n';
-	
+
 	Function *startFunc;
 	Function *endFunc;
 	startFunc = cgNode->getFunction();
 //	endFunc = M.getFunction("list_entries_users");
 	
-	std::string fileName("/home/wanghuan/research/others/countlines/coreutils-8.22/src/who.c");
-	int lineNo = 195;
-	
+	//std::string fileName("/home/wanghuan/research/others/countlines/coreutils-8.22/src/who.c");
+//	int lineNo = 195;
+	std::cerr << "xyj---fileName in runOnModule():" << fileName << std::endl;
+	std::cerr << "xyj---lineNo in runOnModule():" << lineNo <<std::endl;
 	BasicBlock *BB = getBB(fileName, lineNo);
 	if (BB) {
 		endFunc = BB->getParent();

@@ -2586,8 +2586,8 @@ void Executor::run(ExecutionState &initialState) {
   //get searcher, here we can use some new searcher. 
   //To add searcher, modify Searcher.h & cpp, and UserSearcher.h & cpp
 // xyj
+  std::cerr << "xyj---FileName:" << FileName <<std::endl << "xyj---LineNum:" << LineNum <<std::endl;
   searcher = constructUserSearcher(*this, FileName, LineNum);
-
   //update(current, toinsert, toremove), here insert states and remove nothing
   searcher->update(0, states, std::set<ExecutionState*>());
 
